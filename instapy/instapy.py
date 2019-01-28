@@ -49,9 +49,11 @@ from .util import interruption_handler
 from .util import highlight_print
 from .util import dump_record_activity
 from .util import truncate_float
+from .util import get_historic_followed_users
 from .unfollow_util import get_given_user_followers
 from .unfollow_util import get_given_user_following
 from .unfollow_util import unfollow
+from .unfollow_util import manual_unfollow
 from .unfollow_util import unfollow_user
 from .unfollow_util import follow_user
 from .unfollow_util import follow_restriction
@@ -3309,6 +3311,68 @@ class InstaPy:
 
         return self
 
+    def unfollow_users_manually(self,
+                       amount=10,
+                       customList=(False, [], "all"),
+                       InstapyFollowed=(True, "all"),
+                       nonFollowers=False,
+                       allFollowing=False,
+                       style="FIFO",
+                       unfollow_after=None):
+
+        if self.aborting:
+            return self
+
+        message = "Starting to manually unfollow users.."
+        highlight_print(self.username, message,
+                        "feature", "info", self.logger)
+
+        if unfollow_after is not None:
+            if not python_version().startswith(('2.7', '3')):
+                self.logger.warning(
+                    "`unfollow_after` parameter is not"
+                    " available for Python versions below 2.7")
+                unfollow_after = None
+
+        self.automatedFollowedPool = set_automated_followed_pool(
+            self.username,
+            unfollow_after,
+            self.logger,
+            self.logfolder)
+
+        try:
+            unfollowed = manual_unfollow(self.browser,
+                                  self.username,
+                                  amount,
+                                  customList,
+                                  InstapyFollowed,
+                                  nonFollowers,
+                                  allFollowing,
+                                  style,
+                                  self.automatedFollowedPool,
+                                  self.relationship_data,
+                                  self.dont_include,
+                                  self.white_list,
+                                  self.jumps,
+                                  self.logger,
+                                  self.logfolder)
+            self.logger.info(
+                "--> Total people unfollowed : {}\n".format(unfollowed))
+            self.unfollowed += unfollowed
+
+        except Exception as exc:
+            if isinstance(exc, RuntimeWarning):
+                self.logger.warning(
+                    u'Warning: {} , stopping unfollow_users'.format(exc))
+                return self
+
+            else:
+                self.logger.error('Sorry, an error occurred: {}'.format(exc))
+                self.aborting = True
+                return self
+
+        return self
+
     def like_by_feed(self, **kwargs):
         """Like the users feed"""
 
@@ -3884,7 +3948,6 @@ class InstaPy:
             print("\n\n")
 
 
-
     def follow_by_tags(self,
                        tags=None,
                        amount=50,
@@ -3956,6 +4019,11 @@ class InstaPy:
                     )
 
                     if not inappropriate:
+                        users_followed_in_the_past = (
+                            get_historic_followed_users(self.username,
+                                                        self.logger,
+                                                        self.logfolder)
+                        )
                         # validate user
                         validation, details = self.validate_user_call(
                             user_name)
@@ -3963,6 +4031,12 @@ class InstaPy:
                             self.logger.info(details)
                             not_valid_users += 1
                             continue
+                        elif user_name in users_followed_in_the_past:
+                            self.logger.info("Will not follow user (already followed in the past)")
+                            self.logger.info(details)
+                            not_valid_users += 1
+                            continue
+
                         else:
                             web_address_navigator(self.browser, link)
 

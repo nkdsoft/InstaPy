@@ -1632,13 +1632,52 @@ def remove_extra_spaces(text):
     return new_text
 
 
-
 def has_any_letters(text):
     """ Check if the text has any letters in it """
     # result = re.search("[A-Za-z]", text)   # works only with english letters
     result = any(c.isalpha() for c in text)   # works with any letters - english or non-english
 
     return result
+
+
+def get_historic_followed_users(username, logger, logfolder):
+    pool_name = "{0}{1}_record_all_followed.csv".format(logfolder, username)
+    userList = []
+
+    try:
+        with open(pool_name, 'r+') as followedPoolFile:
+            reader = csv.reader(followedPoolFile)
+
+            for row in reader:
+                entries = row[0].split(' ~ ')
+                sz = len(entries)
+                """
+                Data entry styles [historically]:
+                    user,   # oldest
+                    datetime ~ user,   # after `unfollow_after` was introduced
+                    datetime ~ user ~ user_id,   # after `user_id` was added
+                """
+                if sz == 1:
+                    user = entries[0]
+
+                elif sz == 2:
+                    time_stamp = entries[0]
+                    user = entries[1]
+
+                elif sz == 3:
+                    time_stamp = entries[0]
+                    user = entries[1]
+                    user_id = entries[2]
+
+                userList.append(user)
+
+        followedPoolFile.close()
+
+    except BaseException as exc:
+        logger.error("Error occurred while generating a user list from the record_all_followed pool!\n\t{}"
+                     .format(str(exc).encode("utf-8")))
+
+    return userList
 
 
 
